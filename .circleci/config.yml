@@ -1,0 +1,67 @@
+version: 2.1
+
+executors:
+  unity_exec:
+    docker:
+      - image: gableroux/unity3d:2019.4.7f1
+    environment:
+      BUILD_NAME: NAME OF YOUR APP
+
+.test: &test
+  executor: unity_exec
+  steps:
+    - checkout
+    - run:
+        name: Run Tests
+        command: chmod +x ./ci/test.sh && ./ci/test.sh
+    - store_artifacts:
+        path: $(pwd)/$TEST_PLATFORM-results.xml
+
+.build: &build
+  executor: unity_exec
+  steps:
+    - checkout
+    - run:
+        name: Building game binaries
+        command: chmod +x ./ci/build.sh && ./ci/build.sh
+    - run: 
+        name: Zipping build
+        command: apt update && apt -y install zip && zip -r "build.zip" ./Builds/
+    - store_artifacts:
+        path: build.zip
+jobs:
+  test_editmode:
+    <<: *test
+    environment:
+      TEST_PLATFORM: editmode
+  test_playmode:
+    <<: *test
+    environment:
+      TEST_PLATFORM: playmode
+  build_android:
+    <<: *build
+    docker:
+      - image: gableroux/unity3d:2019.4.7f1-android
+    environment:
+      BUILD_TARGET: Android
+  build_ios:
+    <<: *build
+    docker:
+      - image: gableroux/unity3d:2019.4.7f1-ios
+    environment:
+      BUILD_TARGET: iOS
+          
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test_editmode
+      - test_playmode
+      - build_android:
+          requires:
+            - test_editmode
+            - test_playmode
+      - build_ios:
+          requires:
+            - test_editmode
+            - test_playmode
